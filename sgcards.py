@@ -142,20 +142,24 @@ if seccion == "Panel principal":
             st.info("No hay tarjetas registradas.")
         else:
 
-            # ====== NUEVO: Totales ======
+            # ====== FILTRO POR FECHA (NUEVO) ======
+            fecha_seleccionada = st.sidebar.date_input(
+                "Próximos pagos:",
+                datetime.now()
+            )
+
+            hoy = fecha_seleccionada.day
+            anio = fecha_seleccionada.year
+            mes = fecha_seleccionada.month
+
+            dias_mes = monthrange(anio, mes)[1]
+
+            # ====== Totales ======
             total_tarjetas = len(tarjetas)
             total_credito = sum(float(t._mapping["limiteCredito"]) for t in tarjetas)
+
             st.sidebar.write(f"**Total de tarjetas registradas:** {total_tarjetas}")
             st.sidebar.write(f"**Línea total de crédito:** ${total_credito:,.2f}")
-           # st.write("---")
-
-
-            hoy = datetime.now().day
-            anio = datetime.now().year
-            mes = datetime.now().month
-
-            # Días del mes actual
-            dias_mes = monthrange(anio, mes)[1]
 
             proximas = []
 
@@ -164,11 +168,10 @@ if seccion == "Panel principal":
                 t = dict(t._mapping)
                 fecha_pago = int(t["fechaPago"])
 
-                # ==== CÁLCULO CORRECTO DE DÍAS RESTANTES ====
+                # ==== CÁLCULO DE DÍAS RESTANTES BASADO EN FECHA SELECCIONADA ====
                 if fecha_pago >= hoy:
                     dias_restantes = fecha_pago - hoy
                 else:
-                    # Fecha de pago es del próximo mes
                     dias_restantes = (dias_mes - hoy) + fecha_pago
 
                 # Mostrar solo si faltan 5 días o menos
@@ -182,14 +185,9 @@ if seccion == "Panel principal":
             if proximas:
 
                 df = pd.DataFrame(proximas)
-
-                # Ordenar por los que faltan menos días
                 df = df.sort_values("días_restantes")
-
-                # Establecer el índice como nombre de tarjeta
                 df = df.set_index("tarjeta")
 
-                # ==== ESTILO ====
                 def resaltar_hoy(row):
                     color = "background-color: #941903" if row["días_restantes"] == 0 else ""
                     return [color] * len(row)
@@ -205,8 +203,72 @@ if seccion == "Panel principal":
 
     # ================== OPCIÓN: DISPONIBLES ==================
     elif panel == "Disponibles":
-        st.subheader("Límites disponibles por tarjeta (pendiente de implementar)")
+        #st.subheader("Tarjetas disponibles para usar hoy")
 
+        tarjetas = get_tarjetas()
+        if not tarjetas:
+            st.info("No hay tarjetas registradas.")
+        else:
+
+            # === Fecha actual desde el calendario ===
+            fecha_actual = st.sidebar.date_input(
+                "Disponibilidad basada en fecha:",
+                datetime.now()
+            )
+
+            hoy = fecha_actual.day
+            anio = fecha_actual.year
+            mes = fecha_actual.month
+
+            dias_mes = monthrange(anio, mes)[1]
+
+            disponibles = []
+
+            for t in tarjetas:
+                t = dict(t._mapping)
+
+                corte = int(t["fechaCorte"])
+                inicio = corte
+                fin = corte + 10
+
+                # ---- Ajuste para cambio de mes ----
+                if fin > dias_mes:
+                    # Caso de disponibilidad que pasa al siguiente mes
+                    fin_real = fin - dias_mes
+
+                    if hoy >= inicio:
+                        dias_restantes = fin - hoy
+                        esta_disponible = dias_restantes >= 0
+                    else:
+                        dias_restantes = fin_real - hoy
+                        esta_disponible = dias_restantes >= 0
+                else:
+                    # Todo dentro del mismo mes
+                    fin_real = fin
+                    esta_disponible = inicio <= hoy <= fin_real
+                    dias_restantes = fin_real - hoy if esta_disponible else -1
+
+                # Guardar solo si está disponible hoy
+                if esta_disponible:
+                    disponibles.append({
+                        "tarjeta": t["nombre"],
+                        "fecha_corte": corte,
+                        "disponible_hasta": fin_real,
+                        "días_restantes": dias_restantes
+                    })
+
+            # === Mostrar DataFrame ===
+            if disponibles:
+                df = pd.DataFrame(disponibles)
+                df = df.set_index("tarjeta")
+
+                # Ordenar por días restantes (menor a mayor)
+                df = df.sort_values("días_restantes")
+
+                st.dataframe(df, use_container_width=True)
+
+            else:
+                st.info("No hay tarjetas disponibles para usar en esta fecha.")
 
 
 # ---------------------------------------------------
@@ -225,6 +287,7 @@ if opcion == "Crear tarjeta":
             st.sidebar.success("Tarjeta creada correctamente.")
         else:
             st.sidebar.error("Completa todos los campos.")
+
 
 
 # ---------------------------------------------------
