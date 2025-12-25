@@ -189,7 +189,7 @@ if seccion == "Panel principal":
                 df = df.set_index("tarjeta")
 
                 def resaltar_hoy(row):
-                    color = "background-color: #941903" if row["días_restantes"] == 0 else ""
+                    color = "background-color: #F54927" if row["días_restantes"] == 0 else ""
                     return [color] * len(row)
 
                 st.dataframe(
@@ -364,3 +364,4 @@ elif opcion == "Ver tarjetas":
 
     else:
         st.info("No hay tarjetas registradas.")
+
